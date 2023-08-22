@@ -18,19 +18,19 @@ jobs:
     - name: Create instance
       run: |
         podman run -d --name windows-create --rm \
-        -v ${PWD}:/workspace:z \
-        -e ARM_TENANT_ID=${{ secrets.ARM_TENANT_ID }} \
-        -e ARM_SUBSCRIPTION_ID=${{ secrets.ARM_SUBSCRIPTION_ID }} \
-        -e ARM_CLIENT_ID=${{ secrets.ARM_CLIENT_ID }} \
-        -e ARM_CLIENT_SECRET='${{ secrets.ARM_CLIENT_SECRET }}' \
-        quay.io/rhqp/qenvs:v0.0.4-snapshot azure \
-          windows create \
-          --project-name 'windows-desktop' \
-          --backed-url 'file:///workspace' \
-          --conn-details-output '/workspace' \
-          --windows-version '11' \
-          --windows-featurepack '22h2-ent' \
-          --vmsize 'Standard_D8a_v4'
+          -v ${PWD}:/workspace:z \
+          -e ARM_TENANT_ID=${{ secrets.ARM_TENANT_ID }} \
+          -e ARM_SUBSCRIPTION_ID=${{ secrets.ARM_SUBSCRIPTION_ID }} \
+          -e ARM_CLIENT_ID=${{ secrets.ARM_CLIENT_ID }} \
+          -e ARM_CLIENT_SECRET='${{ secrets.ARM_CLIENT_SECRET }}' \
+          quay.io/rhqp/qenvs:v0.0.4-snapshot azure \
+            windows create \
+            --project-name 'windows-desktop' \
+            --backed-url 'file:///workspace' \
+            --conn-details-output '/workspace' \
+            --windows-version '11' \
+            --windows-featurepack '22h2-ent' \
+            --vmsize 'Standard_D8a_v4'
 
 
     - name: View windows creation logs
@@ -57,25 +57,56 @@ jobs:
           -e RDP_HOST=$(cat host) \
           -e RDP_USER=$(cat username) \
           -e RDP_PASSWORD=$(cat userpassword) \
-          -e DEBUG=true \
           quay.io/rhqp/frdp:v0.0.1
         # Wait until the x session has been created
         podman wait --condition running x-session
         # Check logs for the x session
         podman logs x-session
 
+    - name: Run podman desktop e2e
+      continue-on-error: true
+      run: |
+        # TODO check where does it should pick the exec
+        # If not accessible with pdURL (due to auth req or similar)
+        # we can locally download and scp into target 
+        # then use param pd-path
+        
+        # Run e2e tests
+        podman run --rm -d --name pd-e2e-windows \
+          -e TARGET_HOST=$(cat host) \
+          -e TARGET_HOST_USERNAME=$(cat username) \
+          -e TARGET_HOST_KEY_PATH=/data/id_rsa \
+          -e TARGET_FOLDER=pd-e2e \
+          -e TARGET_RESULTS=pd-e2e-results.xml \
+          -e OUTPUT_FOLDER=/data \
+          -e DEBUG=true \
+          -v $PWD:/data:z \
+          quay.io/rhqp/podman-desktop-e2e:v1.1.0-windows-amd64  \
+              pd-e2e/run.ps1 \
+                  -targetFolder pd-e2e \
+                  -pdUrl https://github.com/containers/podman-desktop/releases/download/v1.3.1/podman-desktop-1.3.1.exe \
+                  -junitResultsFilename pd-e2e-results.xml 
+        # Check logs 
+        podman logs -f pd-e2e-windows
+
+    - name: upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: results
+        path: "./pd-e2e-results.xml"
+
     - name: Destroy instance
       run: |
         podman run -d --name windows-destroy --rm \
-        -v ${PWD}:/workspace:z \
-        -e ARM_TENANT_ID=${{ secrets.ARM_TENANT_ID }} \
-        -e ARM_SUBSCRIPTION_ID=${{ secrets.ARM_SUBSCRIPTION_ID }} \
-        -e ARM_CLIENT_ID=${{ secrets.ARM_CLIENT_ID }} \
-        -e ARM_CLIENT_SECRET='${{ secrets.ARM_CLIENT_SECRET }}' \
-        quay.io/rhqp/qenvs:v0.0.4-snapshot azure \
-          windows destroy \
-          --project-name 'windows-desktop' \
-          --backed-url 'file:///workspace'
+          -v ${PWD}:/workspace:z \
+          -e ARM_TENANT_ID=${{ secrets.ARM_TENANT_ID }} \
+          -e ARM_SUBSCRIPTION_ID=${{ secrets.ARM_SUBSCRIPTION_ID }} \
+          -e ARM_CLIENT_ID=${{ secrets.ARM_CLIENT_ID }} \
+          -e ARM_CLIENT_SECRET='${{ secrets.ARM_CLIENT_SECRET }}' \
+          quay.io/rhqp/qenvs:v0.0.4-snapshot azure \
+            windows destroy \
+            --project-name 'windows-desktop' \
+            --backed-url 'file:///workspace'
         
     - name: View instance destroy logs
       run: |
