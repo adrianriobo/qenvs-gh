@@ -34,12 +34,10 @@ jobs:
 
 
     - name: View windows creation logs
-      continue-on-error: true
       run: |
         podman logs -f windows-create
 
     - name: Check instance system info
-      continue-on-error: true
       run: |
         set -xuo
         ssh -i id_rsa \
@@ -50,7 +48,6 @@ jobs:
           $(cat username)@$(cat host) "systeminfo"
 
     - name: Emulate X session 
-      continue-on-error: true
       run: |
         # use fake rdp to emulate an active x session
         podman run -d --name x-session \
@@ -64,7 +61,6 @@ jobs:
         podman logs x-session
 
     - name: Run podman desktop e2e
-      continue-on-error: true
       run: |
         # TODO check where does it should pick the exec
         # If not accessible with pdURL (due to auth req or similar)
@@ -96,6 +92,7 @@ jobs:
         path: "./pd-e2e-results.xml"
 
     - name: Destroy instance
+      if: always()
       run: |
         podman run -d --name windows-destroy --rm \
           -v ${PWD}:/workspace:z \
